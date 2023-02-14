@@ -20,8 +20,9 @@ _logger_names = []
 class AverageMeter(object):
     """Computes and stores the average and current value"""
 
-    def __init__(self, length=0):
+    def __init__(self, length=0, isdistributed:bool=True):
         self.length = length
+        self.isdistrib = isdistributed
         self.reset()
 
     def reset(self):
@@ -34,7 +35,8 @@ class AverageMeter(object):
         self.avg = 0.0
 
     def reduce_update(self, tensor, num=1):
-        dist.all_reduce(tensor)
+        if self.isdistrib: 
+            dist.all_reduce(tensor)
         self.update(tensor.item(), num=num)
 
     def update(self, val, num=1):
@@ -53,6 +55,11 @@ class AverageMeter(object):
             self.count += num
             self.avg = self.sum / self.count
 
+def removedir(path):
+    import shutil
+    if link.get_rank() == 0 and os.path.exists(path):
+        shutil.rmtree(path)
+    dist.barrier()
 
 def makedir(path):
     if link.get_rank() == 0 and not os.path.exists(path):

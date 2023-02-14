@@ -1,11 +1,15 @@
 import copy
 import argparse
+import os
 import time
 import datetime
+
+
 
 import torch
 import torch.nn as nn
 import torch.distributed as dist
+from core.utils import dist as link
 
 from core.solver.ssl_solver import SSLSolver
 from core.model import model_entry
@@ -15,7 +19,7 @@ from core.utils.misc import count_params, count_flops, load_state_model, Average
 from core.optimizer import optim_entry
 from core.data import build_imagenet_train_dataloader
 from core.loss_functions import loss_entry
-
+import numpy as np
 
 class ImageNetSolver(SSLSolver):
     def build_model(self):
@@ -58,8 +62,14 @@ class ImageNetSolver(SSLSolver):
                                                                output_device=self.dist.local_id,
                                                                find_unused_parameters=True)
 
+        
+        # import pdb; pdb.set_trace()
+        self.logger.info(self.dist.local_id)
+        self.logger.info("ids")
         if 'model' in self.state:
             load_state_model(self.model, self.state['model'])
+        
+        # import pdb; 
 
     def build_optimizer(self):
         opt_config = self.config.optimizer
@@ -105,6 +115,18 @@ class ImageNetSolver(SSLSolver):
         start_step = self.state['last_iter'] + 1
         end = time.time()
 
+        # image_ids = []
+        # scores = []
+        # cls_preds = []
+
+        output_dict = {
+            'filename': [],
+            'image_id': [],#int(image_id[_idx]),
+            'prediction': [],#int(prediction[_idx]),
+            'score': [],#[float('%.8f' % s) for s in score[_idx]],
+        }
+        
+
         for i, batch in enumerate(self.train_data['loader']):
             input = batch['image']  # [bs, #channel * 2, h, w]
             curr_step = start_step + i
@@ -115,11 +137,46 @@ class ImageNetSolver(SSLSolver):
             self.meters.data_time.update(time.time() - end)
             # transfer input to gpu
             input = input.cuda()
+            
+            # output_dict['image_id']+=batch['image_id']
+            # image_ids.append(batch['image_id'].cuda())
+            # image_ids+=batch['image_id']
+
+            # import pdb; pdb.set_trace()
 
             # input -> p1, z1, p2, z2
             output = self.model(input)
 
-            loss = self.criterion.forward(*output)
+
+            loss, p_z_m = self.criterion.forward(*output)
+
+            # --------- positive cls and scores
+
+            curr_epoch = (curr_step - 1) // self.config.data.iter_per_epoch + 1
+
+            # index_pos = torch.arange(0, input.size(0))
+
+            offset = link.get_rank() * input.size(0)
+            index_pos = torch.arange(offset, offset + input.size(0), dtype=torch.long)
+            # .cuda()
+
+            _, preds = p_z_m.data.topk(k=1, dim=1)
+            preds = torch.eq(preds.squeeze().data.cpu(), index_pos).type(torch.int)
+
+            scores = torch.diagonal(p_z_m[:, offset: offset +input.size(0)])
+            
+            output_dict = {'prediction': preds.data.cpu().numpy().tolist(),
+            'score': scores.data.cpu().numpy().tolist(),
+            'image_id': batch['image_id'],
+            'filename': batch['filename'],
+            }
+            res_file = os.path.join(self.path.result_path, f'train_results.txt.rank_{self.dist.rank}_{curr_epoch}')
+            writer = open(res_file, 'a')
+            self.train_data['loader'].dataset.dump_train(writer, output_dict)
+            writer.close()
+
+            # --------- end of positive cls and scores
+        
             loss = loss
 
             with torch.no_grad():
@@ -159,6 +216,16 @@ class ImageNetSolver(SSLSolver):
                           f'Remaining Time {remain_time} ({finish_time})'
 
                 self.logger.info(log_msg)
+                # files = torch.cat(image_ids, dim=0)
+                # self.logger.info("files.shape: ", files.shape)
+                # files = 
+                # files = self.reduce_scores(files, self.dist.rank)
+
+                # self.logger.info(f"gathered {len(files)}, {files[0]} rank {self.dist.rank } {torch.cat(image_ids, dim=0).shape}")
+                # dist.barrier()
+
+                # np.savetxt('temp.txt', files, fmt="%f")
+                # image_ids = []
 
             if self.dist.rank == 0 and (
                     curr_step % self.config.saver.val_freq == 0 or curr_step == total_step) and curr_step > 0:
@@ -173,9 +240,15 @@ class ImageNetSolver(SSLSolver):
                 elif type(self.config.saver.save_many) is list and curr_epoch in self.config.saver.save_many:
                     ckpt_name = f'{self.path.save_path}/ckpt_{curr_step}_e{curr_epoch}.pth'
                     torch.save(self.state, ckpt_name)
+                
+                
 
             end = time.time()
 
+    @torch.no_grad()
+    def dump_scores(self, writer, batch):
+        self.train_data['loader'].dataset.dump(writer, batch)
+        writer.close()
 
 def main():
     parser = argparse.ArgumentParser(description='ssl solver')

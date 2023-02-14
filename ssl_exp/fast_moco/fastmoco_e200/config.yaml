@@ -50,14 +50,14 @@ data:                     # data details
     read_from: mc         # choices = {'mc', 'fs', 'fake', 'osg'}
     
     batch_size: 32         # batch size in one GPU
-    num_workers: 16        # number of subprocesses for data loading
+    num_workers: 10        # number of subprocesses for data loading
     pin_memory: True      # whether to copy Tensors into CUDA pinned memory
     input_size: 224       # training image size             # DIISABLED IN TRANSFORM
     test_resize: 256      # testing resize image size       # DIISABLED IN TRANSFORM
 
     train:                            # training data details
-        root_dir:  ..path/..to/images/train/  # Imagenet dataset
-        meta_file:  ..path/..to/images/meta/train.txt   # Imagenet dataset meta file
+        root_dir:  /nfs/users/ext_prateek.munjal/data/imagenet_2012/train/  # Imagenet dataset
+        meta_file:  /nfs/projects/healthcare/nasir/imagenet1k/train.txt   # Imagenet dataset meta file
         image_reader:                 # image decoding type
             type: pil
         sampler:                      # sampler details

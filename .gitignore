@@ -7,4 +7,12 @@ log.txt
 **.DS_Store**
 .env
 .idea/
+**.npy
+**.png
+**.txt
+**.mp4
+**.pickle
+**.pdf
+**.pth
+**.pth**
 

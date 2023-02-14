@@ -178,7 +178,8 @@ def build_sampler(cfg_sampler, cfg_dataset):
     else:
         # check step type: iteration or epoch ?
         world_size = link.get_world_size()
-        cfg_dataset['iter_per_epoch'] = iter_per_epoch = (len(dataset) - 1) // (batch_size * world_size) + 1
+        iter_per_epoch = (len(dataset) - 1) // (batch_size * world_size) + 1
+        cfg_dataset['iter_per_epoch'] = iter_per_epoch
         if not getattr(cfg_dataset, 'max_iter', False):
             total_iter = cfg_dataset['max_epoch'] * iter_per_epoch
             cfg_dataset['max_iter'] = total_iter
@@ -195,5 +196,7 @@ def build_sampler(cfg_sampler, cfg_dataset):
         }
     cfg_sampler['kwargs'].update(sampler_kwargs)
     cfg_dataset.pop('dataset')
+
+
 
     return sampler_dict[cfg_sampler['type']](**cfg_sampler['kwargs'])

@@ -29,20 +29,21 @@ lms:                      # large model support: utilize cpu to save gpu memory
     enable: False         # whether to use lms
     kwargs:
         limit: 12         # the soft limit in G-bytes on GPU memory allocated for tensors
-
+root_path: '/nfs/projects/healthcare/nasir/Fast-MoCo/ssl_exp/fast_moco/fastmoco_e100/exp_linear_bs_4096'
 data:                     # data details
     type: imagenet        # choices = {'imagenet', 'custom'}
-    read_from: mc         # choices = {'mc', 'fs', 'fake', 'osg'}
+    read_from: fs         # choices = {'mc', 'fs', 'fake', 'osg'}
     
-    batch_size: 128         # batch size in one GPU
-    num_workers: 4        # number of subprocesses for data loading
+    batch_size: 512         # batch size in one GPU
+    num_workers: 10        # number of subprocesses for data loading
     pin_memory: True      # whether to copy Tensors into CUDA pinned memory
     input_size: 224       # training image size         # DIISABLED IN TRANSFORM
     test_resize: 256      # testing resize image size   # DIISABLED IN TRANSFORM
 
     train:
-        root_dir:  ..path/..to/images/train/  # Imagenet dataset
-        meta_file:  ..path/..to/images/meta/train.txt   # Imagenet dataset meta file
+        root_dir:  /nfs/users/ext_prateek.munjal/data/imagenet_2012/train/  # Imagenet dataset
+        meta_file:  /nfs/projects/healthcare/nasir/imagenet1k/train.txt   # Imagenet dataset meta file        
+        # meta_file:  /nfs/projects/healthcare/nasir/imagenet1k/prune_strategies/sum_preds/train_pruned_6.txt   # Imagenet dataset meta file
         image_reader:
             type: pil
         sampler:
@@ -51,8 +52,9 @@ data:                     # data details
             type: LINEAR
 
     test:
-        root_dir:  ..path/..to/images/mages/val/   # Imagenet val dataset
-        meta_file:  ..path/..to/images/mages/meta/val.txt   # Imagenet val dataset meta file
+        root_dir:  /nfs/users/ext_prateek.munjal/data/imagenet_2012/val/   # Imagenet val dataset
+        # root_dir:  ..path/..to/images/mages/val/   # Imagenet val dataset
+        meta_file:  /nfs/projects/healthcare/nasir/imagenet1k/val.txt   # Imagenet val dataset meta file
         image_reader:
             type: pil
         sampler:
@@ -64,12 +66,15 @@ data:                     # data details
             type: imagenet
             kwargs:
                 topk: [ 1, 5 ]
-
+# seed: 1
 saver:                                # saving or loading details
     print_freq: 10                    # frequence of printing logger
     val_freq: 300                    # frequence of evaluating during training
     save_many: False                   # whether to save checkpoints after every evaluation
-    pretrain:  {}                     # pretrain model details
+    pretrain:  
+        path: /nfs/projects/healthcare/nasir/Fast-MoCo/ssl_exp/fast_moco/fastmoco_e100/experiments_ssl/100/weighted_loss_5_sum_1_1.0_2.5/checkpoints/ckpt_latest.pth
+        
+    # {}                     # pretrain model details
 #        path: ***
 
     #     ignore:                     # ignore keys in checkpoints

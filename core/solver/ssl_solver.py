@@ -33,7 +33,10 @@ class SSLSolver(object):
 
         # >>> directories
         self.path = EasyDict()
-        self.path.root_path = os.path.dirname(self.config_file)
+        # self.path.root_path = os.path.dirname(self.config_file)
+        self.path.root_path = self.config.get('root_path' ,os.path.dirname(self.config_file))
+        os.path.dirname(self.config_file) != self.path.root_path and makedir(self.path.root_path)
+
         self.path.save_path = os.path.join(self.path.root_path, 'checkpoints')
         self.path.event_path = os.path.join(self.path.root_path, 'events')
         self.path.result_path = os.path.join(self.path.root_path, 'results')

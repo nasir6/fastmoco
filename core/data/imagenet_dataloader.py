@@ -78,7 +78,7 @@ def build_common_augmentation(aug_type):
         return transforms.Compose(augmentation)
 
 
-def build_imagenet_train_dataloader(cfg_dataset, data_type='train'):
+def build_imagenet_train_dataloader(cfg_dataset, data_type='train', return_dataset:bool=False):
     """
     build training dataloader for ImageNet
     """
@@ -106,6 +106,12 @@ def build_imagenet_train_dataloader(cfg_dataset, data_type='train'):
     sampler = build_sampler(cfg_train['sampler'], cfg_dataset)
     if cfg_dataset['last_iter'] >= cfg_dataset['max_iter']:
         return {'loader': None}
+
+
+    if return_dataset:
+        return dataset
+
+
     # build dataloader
     # PyTorch dataloader
     loader = DataLoader(
@@ -116,10 +122,11 @@ def build_imagenet_train_dataloader(cfg_dataset, data_type='train'):
         pin_memory=True,
         sampler=sampler
     )
+
     return {'type': 'train', 'loader': loader}
 
 
-def build_imagenet_test_dataloader(cfg_dataset, data_type='test'):
+def build_imagenet_test_dataloader(cfg_dataset, data_type='test', return_dataset:bool=False):
     """
     build testing/validation dataloader for ImageNet
     """
@@ -144,11 +151,17 @@ def build_imagenet_test_dataloader(cfg_dataset, data_type='test'):
         evaluator=evaluator,
         image_reader_type=image_reader.get('type', 'pil'),
     )
+
     # build sampler
     assert cfg_test['sampler'].get('type', 'distributed') == 'distributed'
     cfg_test['sampler']['kwargs'] = {'dataset': dataset, 'round_up': False}
     cfg_dataset['dataset'] = dataset
     sampler = build_sampler(cfg_test['sampler'], cfg_dataset)
+
+
+    if return_dataset:
+        return dataset
+
     # build dataloader
     # PyTorch dataloader
     loader = DataLoader(

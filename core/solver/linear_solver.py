@@ -1,4 +1,6 @@
 import argparse
+from asyncio.log import logger
+from logging import raiseExceptions
 import os
 import pprint
 import json
@@ -28,13 +30,30 @@ from core.data import build_imagenet_train_dataloader, build_imagenet_test_datal
 class LinearImageNetSolver(SSLSolver):
     def setup_env(self):
         # >>> dist
+        seed = self.config.get('seed', 233)
+
         self.dist = EasyDict()
         self.dist.rank, self.dist.world_size, self.dist.local_id = link.get_rank(), link.get_world_size(), link.get_local_rank()
         self.prototype_info.world_size = self.dist.world_size
 
         # >>> directories
         self.path = EasyDict()
-        self.path.root_path = os.path.dirname(self.config_file)
+        # self.path.root_path = os.path.dirname(self.config_file)
+        self.path.root_path = self.config.get('root_path' ,os.path.dirname(self.config_file))
+        data_split = os.path.basename(self.config['data']['train']['meta_file']).split('.txt')[0]
+        prune_strategy = os.path.basename(os.path.abspath(os.path.join(self.config['data']['train']['meta_file'],"..")))
+        trunk_name = self.config['saver']['pretrain']['path']
+
+        trunk_name = os.path.basename(os.path.abspath(os.path.join(trunk_name,"../..")))
+        chk_name = os.path.basename(os.path.abspath( self.config['saver']['pretrain']['path']))
+
+        self.path.root_path = os.path.join(self.path.root_path, f"{prune_strategy}_{data_split}_{trunk_name}_{chk_name}_{seed}")
+
+        assert not os.path.exists(self.path.root_path), f'{self.path.root_path} path already exist'
+
+
+        os.path.dirname(self.config_file) != self.path.root_path and makedir(self.path.root_path)
+
         self.path.save_path = os.path.join(self.path.root_path, 'checkpoints_finetune')
         self.path.event_path = os.path.join(self.path.root_path, 'events_finetune')
         self.path.result_path = os.path.join(self.path.root_path, 'results_finetune')
@@ -50,6 +69,7 @@ class LinearImageNetSolver(SSLSolver):
         create_logger(os.path.join(self.path.root_path, 'log_finetune.txt'))
         self.logger = get_logger(__name__)
         self.logger.info(f'config: {pprint.pformat(self.config)}')
+        self.logger.info(f'root path {self.path}')
         if 'SLURM_NODELIST' in os.environ:
             self.logger.info(f"hostnames: {os.environ['SLURM_NODELIST']}")
 
@@ -63,6 +83,7 @@ class LinearImageNetSolver(SSLSolver):
             self.logger.info('======= Local finetune pretrain NOT FOUND =======')
             try:
                 self.logger.info('======= Looking for local pretrain... =======')
+                self.logger.info(f'======= Looking for local pretrain at {self.path.root_path}... =======')
                 local_ft_ckpt = os.path.join(self.path.root_path, 'checkpoints', 'ckpt.pth')
                 self.state = torch.load(local_ft_ckpt, 'cpu')
                 self.logger.info(f"Recovering from {local_ft_ckpt}, keys={list(self.state.keys())}")
@@ -283,6 +304,7 @@ class LinearImageNetSolver(SSLSolver):
         self.model.eval()
         res_file = os.path.join(self.path.result_path, f'results.txt.rank{self.dist.rank}')
         writer = open(res_file, 'w')
+
         for batch_idx, batch in enumerate(self.val_data['loader']):
             input = batch['image']
             label = batch['label']
@@ -303,7 +325,10 @@ class LinearImageNetSolver(SSLSolver):
         writer.close()
         dist.barrier()
         if self.dist.rank == 0:
+            self.logger.info(res_file)
+
             metrics = self.val_data['loader'].dataset.evaluate(res_file)
+            self.clean_up_files()
             self.logger.info(json.dumps(metrics.metric, indent=2))
         else:
             metrics = {}
@@ -314,6 +339,14 @@ class LinearImageNetSolver(SSLSolver):
             self.model.module.fc[0].train()
         self.model.train()
         return metrics
+
+    def clean_up_files(self):
+        import glob, os
+        paths = glob.glob(f"{self.path.result_path}/*")
+        print(paths)
+        for path in paths:
+            print(path)
+            os.remove(path)
 
     def test(self):
         self.pre_train()

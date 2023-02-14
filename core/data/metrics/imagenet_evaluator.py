@@ -42,6 +42,24 @@ class ImageNetEvaluator(Evaluator):
                     res_dict[key].append(info[key])
         return res_dict
 
+    def eval_from_dict(self, res_dict):
+        pred = torch.from_numpy(np.array(res_dict['score']))
+        label = torch.from_numpy(np.array(res_dict['label']))
+        num = pred.size(0)
+        maxk = max(self.topk)
+        _, pred = pred.topk(maxk, 1, True, True)
+        pred = pred.t()
+        correct = pred.eq(label.view(1, -1).expand_as(pred))
+        res = {}
+        for k in self.topk:
+            correct_k = correct[:k].contiguous().view(-1).float().sum(0, keepdim=True)
+            acc = correct_k.mul_(100.0 / num)
+            res.update({f'top{k}': acc.item()})
+        metric = ClsMetric(res)
+        metric.set_cmp_key(f'top{self.topk[0]}')
+
+        return metric
+
     def eval(self, res_file):
         res_dict = self.load_res(res_file)
         pred = torch.from_numpy(np.array(res_dict['score']))

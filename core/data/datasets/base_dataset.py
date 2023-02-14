@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from torch.utils.data import Dataset
 try:
-    import mc
+    import memcache as mc
 except ImportError:
     pass
 
@@ -14,7 +14,7 @@ class BaseDataset(Dataset):
                  root_dir,
                  meta_file,
                  transform=None,
-                 read_from='mc',
+                 read_from='fs',
                  evaluator=None):
 
         super(BaseDataset, self).__init__()
